@@ -43,7 +43,7 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/morgan": "^1.9.9",
     "@types/multer": "^2.2.0",
-    "@types/node": "^20.11.24",
+    "@types/node": "^20.19.43",
     "@types/nodemailer": "^8.0.1",
     "@types/pdfkit": "^0.17.6",
     "prisma": "^5.10.0",
@@ -55,6 +55,6 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "engines": {
-  "node": "20.x"
-}
+    "node": "20.x"
+  }
 }
