@@ -1,0 +1,196 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  googleId        String?   @unique
+  fullName        String
+  profilePicture  String?
+  role            String    @default("STUDENT") // STUDENT | ADMIN
+  passwordHash    String?   // Null for students (Google OAuth)
+  isActive        Boolean   @default(true)
+  
+  // Relations
+  studentProfile  StudentProfile?
+  receipts        Receipt[]
+  receiptRequests ReceiptRequest[]
+  auditLogs       AuditLog[]        @relation("actor")
+  notifications   Notification[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model StudentProfile {
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  studentId       String          @unique // University Student ID e.g. UZ-2024-884
+  department      String
+  semester        Int             @default(1)
+  phone           String?
+  emergencyContact String?
+  address         String?
+  assignedRouteId String?
+  
+  // Relations
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedRoute   TransportRoute? @relation("StudentRoute", fields: [assignedRouteId], references: [id])
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model TransportRoute {
+  id              String             @id @default(cuid())
+  name            String             // Route Name
+  origin          String             // Starting point
+  destination     String             // Ending point
+  stops           String             // JSON string array of stops
+  semester        String             // Semester session e.g. Fall 2026
+  price           Float              // Transport fee
+  busCount        Int                @default(1)
+  isActive        Boolean            @default(true)
+  
+  // Relations
+  students        StudentProfile[]   @relation("StudentRoute")
+  dailySchedules  DailyBusSchedule[]
+  receiptRequests ReceiptRequest[]
+  receipts        Receipt[]
+  
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model Bus {
+  id                 String             @id @default(cuid())
+  busNumber          String             @unique // Bus number / Plate
+  registrationNumber String
+  driverName         String?
+  driverPhone        String?
+  totalSeats         Int                @default(50)
+  isActive           Boolean            @default(true)
+  notes              String?
+  
+  // Relations
+  dailySchedules     DailyBusSchedule[]
+  
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}
+
+model DailyBusSchedule {
+  id            String         @id @default(cuid())
+  busId         String
+  routeId       String
+  serviceDate   DateTime
+  departureTime DateTime
+  arrivalTime   DateTime
+  status        String         @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED, DELAYED
+  occupiedSeats Int            @default(0)
+  notes         String?
+  
+  // Relations
+  bus           Bus            @relation(fields: [busId], references: [id], onDelete: Cascade)
+  route         TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model ReceiptRequest {
+  id              String         @id @default(cuid())
+  studentId       String
+  routeId         String
+  semester        String
+  amount          Float
+  status          String         @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  // Relations
+  student         User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  route           TransportRoute @relation(fields: [routeId], references: [id])
+  receipt         Receipt?
+  
+  requestedAt     DateTime       @default(now())
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  rejectionReason String?
+  
+  updatedAt       DateTime       @updatedAt
+}
+
+model Receipt {
+  id                  String         @id @default(cuid())
+  receiptNumber       String         @unique
+  requestId           String         @unique
+  studentId           String
+  routeId             String
+  semester            String
+  amount              Float
+  
+  // Security
+  signedToken         String         // Signed token
+  verificationCode    String         @unique // Unique short verification code
+  encryptedQR         String         // Encrypted QR string
+  
+  // Status
+  isRevoked           Boolean        @default(false)
+  revokedAt           DateTime?
+  
+  // Dates
+  issuedAt            DateTime       @default(now())
+  validUntil          DateTime       // Expiry date
+  verificationVersion Int            @default(1)
+  
+  // Relations
+  student             User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  route               TransportRoute @relation(fields: [routeId], references: [id])
+  request             ReceiptRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  
+  updatedAt           DateTime       @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // FEE_REMINDER, RECEIPT_APPROVED, RECEIPT_REJECTED, BUS_DELAY, HOLIDAY, GENERAL, EMERGENCY
+  title     String
+  message   String
+  data      String?  // JSON optional data
+  isRead    Boolean  @default(false)
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  isPinned  Boolean  @default(false)
+  createdBy String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String   // "CREATE_ROUTE", "APPROVE_RECEIPT", etc.
+  objectType String   // "Route", "Receipt", "Student", etc.
+  objectId   String
+  changes    String?  // JSON string
+  ipAddress  String?
+  
+  actor      User     @relation("actor", fields: [actorId], references: [id], onDelete: Cascade)
+  
+  createdAt  DateTime @default(now())
+}
