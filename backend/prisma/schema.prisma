@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -111,6 +111,7 @@ model ReceiptRequest {
   semester        String
   amount          Float
   status          String         @default("PENDING") // PENDING, APPROVED, REJECTED
+  paymentProofUrl String?
   
   // Relations
   student         User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
